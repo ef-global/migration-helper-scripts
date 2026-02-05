@@ -12,10 +12,12 @@
     "migration-audit-cli": "bun run src/scripts/migration-audit-cli.ts"
   },
   "dependencies": {
+    "inquirer": "^12.3.2",
     "stream-json": "^1.9.1"
   },
   "devDependencies": {
     "@types/bun": "^1.2.0",
+    "@types/inquirer": "^9.0.7",
     "@types/stream-json": "^1.7.7"
   }
 }

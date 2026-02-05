@@ -10,3 +10,5 @@ dist/
 .vscode/
 migration-previews/
 coverage/
+audit-reports/
+reports/
