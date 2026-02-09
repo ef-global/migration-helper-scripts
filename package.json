@@ -3,13 +3,17 @@
   "version": "1.0.0",
   "description": "Storyblok migration validation scripts",
   "type": "module",
+  "bin": {
+    "migration-helper": "src/scripts/migration-audit-cli.ts"
+  },
   "scripts": {
     "find-components": "bun run src/scripts/find-components.ts",
     "validate-component-suffixes": "bun run src/scripts/validate-component-suffixes.ts",
     "validate-v3-to-v4": "bun run src/scripts/validate-v3-to-v4.ts",
     "validate-non-v3-to-v4": "bun run src/scripts/validate-non-v3-to-v4.ts",
     "migration-audit": "bun run src/scripts/migration-audit.ts",
-    "migration-audit-cli": "bun run src/scripts/migration-audit-cli.ts"
+    "migration-audit-cli": "bun run src/scripts/migration-audit-cli.ts",
+    "validate-field-removal-risk": "bun run src/scripts/validate-field-removal-risk.ts"
   },
   "dependencies": {
     "inquirer": "^12.3.2",

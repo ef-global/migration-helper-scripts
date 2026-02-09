@@ -1,6 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { readdirSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 type Validator = {
   id: string;
@@ -20,11 +21,30 @@ const validators: Validator[] = [
     script: "src/scripts/validate-v3-to-v4.ts",
   },
   {
+    id: "field-removal-risk",
+    name: "V3-to-V4 field-removal safety",
+    script: "src/scripts/validate-field-removal-risk.ts",
+  },
+  {
     id: "non-v3-to-v4",
     name: "Other migrations (carousel/hide/visibility/items/transitions)",
     script: "src/scripts/validate-non-v3-to-v4.ts",
   },
 ];
+
+const thisFilePath = fileURLToPath(import.meta.url);
+const thisDirPath = dirname(thisFilePath);
+const projectRootPath = resolve(thisDirPath, "../..");
+
+function getValidatorScriptPath(validator: Validator): string {
+  return resolve(projectRootPath, validator.script);
+}
+
+function debugLog(isDebug: boolean, message: string): void {
+  if (isDebug) {
+    console.error(`[debug] ${message}`);
+  }
+}
 
 type ValidatorOutput = {
   name: string;
@@ -78,14 +98,33 @@ function collectJsonFiles(targetPath: string): string[] {
   return results;
 }
 
-function runValidatorJson(filePath: string, validator: Validator): ValidatorOutput {
-  const result = spawnSync(
-    "bun",
-    ["run", validator.script, filePath, "--json"],
-    { encoding: "utf8", maxBuffer: 50 * 1024 * 1024 },
-  );
+function runValidatorJson(
+  filePath: string,
+  validator: Validator,
+  isDebug: boolean,
+): ValidatorOutput {
+  const validatorScriptPath = getValidatorScriptPath(validator);
+  const commandArgs = ["run", validatorScriptPath, filePath, "--json"];
+
+  if (isDebug) {
+    commandArgs.push("--debug");
+  }
+
+  debugLog(isDebug, `checking ${validator.id} on ${filePath}`);
+
+  const result = spawnSync("bun", commandArgs, {
+    encoding: "utf8",
+    maxBuffer: 50 * 1024 * 1024,
+  });
+
+  if (isDebug && result.stderr) {
+    process.stderr.write(
+      result.stderr.endsWith("\n") ? result.stderr : result.stderr + "\n",
+    );
+  }
 
   if (result.error) {
+    debugLog(isDebug, `validator ${validator.id} errored on ${filePath}`);
     return {
       name: validator.name,
       ok: false,
@@ -96,6 +135,7 @@ function runValidatorJson(filePath: string, validator: Validator): ValidatorOutp
   }
 
   if (result.status !== 0) {
+    debugLog(isDebug, `validator ${validator.id} failed on ${filePath}`);
     return {
       name: validator.name,
       ok: false,
@@ -107,6 +147,7 @@ function runValidatorJson(filePath: string, validator: Validator): ValidatorOutp
 
   const output = (result.stdout || "").trim();
   if (!output) {
+    debugLog(isDebug, `validator ${validator.id} returned no output on ${filePath}`);
     return {
       name: validator.name,
       ok: false,
@@ -122,13 +163,25 @@ function runValidatorJson(filePath: string, validator: Validator): ValidatorOutp
       issueCount?: number;
       issues?: unknown[];
     };
+
+    const issueCount = Number(parsed.issueCount ?? 0);
+    if (issueCount > 0) {
+      debugLog(
+        isDebug,
+        `found problem in ${validator.id} on ${filePath}: ${issueCount} issue(s)`,
+      );
+    } else {
+      debugLog(isDebug, `successfully checked ${validator.id} on ${filePath}`);
+    }
+
     return {
       name: validator.name,
       ok: Boolean(parsed.ok),
-      issueCount: Number(parsed.issueCount ?? 0),
+      issueCount,
       issues: Array.isArray(parsed.issues) ? parsed.issues : [],
     };
   } catch (err) {
+    debugLog(isDebug, `validator ${validator.id} returned invalid JSON on ${filePath}`);
     return {
       name: validator.name,
       ok: false,
@@ -143,12 +196,13 @@ function runValidatorJson(filePath: string, validator: Validator): ValidatorOutp
 function main() {
   const args = process.argv.slice(2);
   const isJson = args.includes("--json");
+  const isDebug = args.includes("--debug");
   const onlyIds: string[] = [];
   let targetPath: string | undefined;
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
-    if (arg === "--json") continue;
+    if (arg === "--json" || arg === "--debug") continue;
 
     if (arg.startsWith("--only=")) {
       const value = arg.slice("--only=".length);
@@ -184,13 +238,13 @@ function main() {
 
   if (!targetPath) {
     console.error(
-      "Usage: bun run src/scripts/migration-audit.ts <file-or-dir> [--json] [--only id[,id...]]",
+      "Usage: bun run src/scripts/migration-audit.ts <file-or-dir> [--json] [--debug] [--only id[,id...]]",
     );
     console.error(
-      "Example: bun run src/scripts/migration-audit.ts ./migration-previews",
+      "Example: bun run src/scripts/migration-audit.ts ./migration-previews --debug",
     );
     console.error(
-      "Available validator ids: suffixes, v3-to-v4, non-v3-to-v4",
+      "Available validator ids: suffixes, v3-to-v4, field-removal-risk, non-v3-to-v4",
     );
     process.exit(1);
   }
@@ -201,7 +255,7 @@ function main() {
     if (!allowedIds.has(id)) {
       console.error(`Unknown validator id: ${id}`);
       console.error(
-        "Available validator ids: suffixes, v3-to-v4, non-v3-to-v4",
+        "Available validator ids: suffixes, v3-to-v4, field-removal-risk, non-v3-to-v4",
       );
       process.exit(1);
     }
@@ -228,6 +282,8 @@ function main() {
     };
 
     for (const filePath of files) {
+      debugLog(isDebug, `checking file ${filePath}`);
+
       const fileReport: FileReport = {
         file: filePath,
         ok: true,
@@ -236,7 +292,7 @@ function main() {
       };
 
       for (const validator of selectedValidators) {
-        const result = runValidatorJson(filePath, validator);
+        const result = runValidatorJson(filePath, validator, isDebug);
         fileReport.validators.push(result);
         fileReport.issueCount += result.issueCount;
         if (!result.ok) {
@@ -256,6 +312,15 @@ function main() {
       if (!fileReport.ok) {
         report.ok = false;
       }
+
+      if (fileReport.issueCount > 0) {
+        debugLog(
+          isDebug,
+          `found problem in ${filePath}: ${fileReport.issueCount} issue(s) total`,
+        );
+      } else {
+        debugLog(isDebug, `successfully checked ${filePath}`);
+      }
     }
 
     console.log(JSON.stringify(report, null, 2));
@@ -265,15 +330,28 @@ function main() {
         console.log(`\n===== File: ${filePath} =====`);
       }
 
+      debugLog(isDebug, `checking file ${filePath}`);
+
       for (const validator of selectedValidators) {
         console.log(`\n=== ${validator.name} ===\n`);
-        const result = spawnSync(
-          "bun",
-          ["run", validator.script, filePath],
-          { stdio: "inherit" },
-        );
+        const validatorScriptPath = getValidatorScriptPath(validator);
+        const commandArgs = ["run", validatorScriptPath, filePath];
+
+        if (isDebug) {
+          commandArgs.push("--debug");
+        }
+
+        debugLog(isDebug, `checking ${validator.id} on ${filePath}`);
+
+        const result = spawnSync("bun", commandArgs, {
+          stdio: "inherit",
+        });
+
         if (result.status !== 0) {
           hadErrors = true;
+          debugLog(isDebug, `validator ${validator.id} failed on ${filePath}`);
+        } else {
+          debugLog(isDebug, `completed ${validator.id} on ${filePath}`);
         }
       }
     }
