@@ -3,31 +3,60 @@ import inquirer from "inquirer";
 import { spawnSync } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  discoverMigrationValidators,
+  findDefaultValidatorsRoot,
+  type DiscoveredMigrationValidator,
+} from "./discover-migration-validators.js";
 
 type Option = {
   label: string;
   ids: string[];
 };
 
-const options: Option[] = [
-  { label: "Full audit (all validators)", ids: [] },
-  { label: "Component suffixes (-section/-flex-group)", ids: ["suffixes"] },
-  { label: "V3-to-V4 field migration", ids: ["v3-to-v4"] },
-  {
-    label: "Field-removal safety (non-empty removed values)",
-    ids: ["field-removal-risk"],
-  },
-  {
-    label: "Other migrations (carousel/hide/visibility/items/transitions)",
-    ids: ["non-v3-to-v4"],
-  },
-];
-
 const thisFilePath = fileURLToPath(import.meta.url);
 const thisDirPath = dirname(thisFilePath);
 const auditScriptPath = resolve(thisDirPath, "migration-audit.ts");
 
+async function loadValidatorsWithFallback(): Promise<{
+  validatorsRoot: string;
+  validators: DiscoveredMigrationValidator[];
+}> {
+  try {
+    return await discoverMigrationValidators();
+  } catch {
+    const suggestedRoot =
+      findDefaultValidatorsRoot() ?? "../gc/backpack/src/storyblok/migrations";
+
+    const { validatorsRoot } = await inquirer.prompt<{ validatorsRoot: string }>([
+      {
+        type: "input",
+        name: "validatorsRoot",
+        message: "Enter Backpack validators root directory:",
+        default: suggestedRoot,
+        validate: (inputValue: string) =>
+          inputValue.trim().length > 0 || "Please enter a path.",
+      },
+    ]);
+
+    return discoverMigrationValidators({ validatorsRoot });
+  }
+}
+
+function createOptions(validators: DiscoveredMigrationValidator[]): Option[] {
+  return [
+    { label: "Full audit (all validators)", ids: [] },
+    ...validators.map((validator) => ({
+      label: validator.name,
+      ids: [validator.id],
+    })),
+  ];
+}
+
 async function main() {
+  const discovered = await loadValidatorsWithFallback();
+  const options = createOptions(discovered.validators);
+
   const { selection } = await inquirer.prompt<{ selection: Option }>([
     {
       type: "list",
@@ -70,13 +99,20 @@ async function main() {
     },
   ]);
 
-  const args: string[] = [targetPath];
+  const args: string[] = [
+    targetPath,
+    "--validators-root",
+    discovered.validatorsRoot,
+  ];
+
   if (selection.ids.length > 0) {
     args.push("--only", selection.ids.join(","));
   }
+
   if (useJson) {
     args.push("--json");
   }
+
   if (debug) {
     args.push("--debug");
   }

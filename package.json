@@ -9,11 +9,18 @@
   "scripts": {
     "find-components": "bun run src/scripts/find-components.ts",
     "validate-component-suffixes": "bun run src/scripts/validate-component-suffixes.ts",
-    "validate-v3-to-v4": "bun run src/scripts/validate-v3-to-v4.ts",
+    "validate-legacyFieldShapeMigrations": "bun run src/scripts/validate-legacyFieldShapeMigrations.ts",
+    "validate-designCleanupMigrations": "bun run src/scripts/validate-designCleanupMigrations.ts",
+    "validate-renameAndSizeFormatMigrations": "bun run src/scripts/validate-renameAndSizeFormatMigrations.ts",
+    "validate-safetyNetMigrations": "bun run src/scripts/validate-safetyNetMigrations.ts",
+    "validate-itemsToContent": "bun run src/scripts/validate-itemsToContent.ts",
+    "validate-v3toV4FieldRemovalMigration": "bun run src/scripts/validate-v3toV4FieldRemovalMigration.ts",
+    "validate-v3toV4AllMigrations": "bun run src/scripts/validate-v3toV4AllMigrations.ts",
     "validate-non-v3-to-v4": "bun run src/scripts/validate-non-v3-to-v4.ts",
     "migration-audit": "bun run src/scripts/migration-audit.ts",
     "migration-audit-cli": "bun run src/scripts/migration-audit-cli.ts",
-    "validate-field-removal-risk": "bun run src/scripts/validate-field-removal-risk.ts"
+    "test": "bun test",
+    "migration-diff": "bun run src/scripts/migration-diff.ts"
   },
   "dependencies": {
     "inquirer": "^12.3.2",
