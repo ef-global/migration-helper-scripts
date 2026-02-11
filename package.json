@@ -4,9 +4,10 @@
   "description": "Storyblok migration validation scripts",
   "type": "module",
   "bin": {
-    "migration-helper": "src/scripts/migration-audit-cli.ts"
+    "migration-helper": "src/cli.ts"
   },
   "scripts": {
+    "dev": "bun run src/cli.ts",
     "find-components": "bun run src/scripts/find-components.ts",
     "validate-component-suffixes": "bun run src/scripts/validate-component-suffixes.ts",
     "validate-legacyFieldShapeMigrations": "bun run src/scripts/validate-legacyFieldShapeMigrations.ts",
@@ -20,13 +21,19 @@
     "migration-audit": "bun run src/scripts/migration-audit.ts",
     "migration-audit-cli": "bun run src/scripts/migration-audit-cli.ts",
     "test": "bun test",
-    "migration-diff": "bun run src/scripts/migration-diff.ts"
+    "migration-diff": "bun run src/cli.ts diff",
+    "build": "bun run build.ts",
+    "build:all": "bun run build.ts --all",
+    "changeset": "changeset",
+    "changeset:version": "changeset version",
+    "changeset:tag": "changeset tag"
   },
   "dependencies": {
     "inquirer": "^12.3.2",
     "stream-json": "^1.9.1"
   },
   "devDependencies": {
+    "@changesets/cli": "^2.29.7",
     "@types/bun": "^1.2.0",
     "@types/inquirer": "^9.0.7",
     "@types/stream-json": "^1.7.7"

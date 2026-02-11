@@ -1,5 +1,6 @@
 node_modules/
 dist/
+bin/
 *.tsbuildinfo
 .DS_Store
 *.log
@@ -12,3 +13,5 @@ migration-previews/
 coverage/
 audit-reports/
 reports/
+migration-diff-report.html
+migration-diff-report*.html
