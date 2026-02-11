@@ -99,11 +99,8 @@ else
 fi
 
 BASE_URL="https://github.com/${REPO}/releases/download/${TAG}"
-ASSET="migration-helper-${OS}-${ARCH}"
-if [ "${OS}" = "darwin" ]; then
-  need_cmd unzip
-  ASSET="${ASSET}.zip"
-fi
+ASSET_BASE="migration-helper-${OS}-${ARCH}"
+ASSET="${ASSET_BASE}"
 
 TMP_DIR="$(mktemp -d)"
 cleanup() {
@@ -115,9 +112,19 @@ echo "Installing migration-helper from ${REPO} ${TAG}..."
 echo "Detected target: ${OS}-${ARCH}"
 
 CHECKSUMS_PATH="${TMP_DIR}/SHA256SUMS.txt"
-ASSET_PATH="${TMP_DIR}/${ASSET}"
-
 curl -fsSL "${BASE_URL}/SHA256SUMS.txt" -o "${CHECKSUMS_PATH}"
+
+if [ "${OS}" = "darwin" ]; then
+  # Support both old raw macOS assets and newer notarized .zip assets.
+  for candidate in "${ASSET_BASE}.zip" "${ASSET_BASE}"; do
+    if grep -q " ${candidate}\$" "${CHECKSUMS_PATH}"; then
+      ASSET="${candidate}"
+      break
+    fi
+  done
+fi
+
+ASSET_PATH="${TMP_DIR}/${ASSET}"
 curl -fsSL "${BASE_URL}/${ASSET}" -o "${ASSET_PATH}"
 
 EXPECTED_SHA="$(grep " ${ASSET}\$" "${CHECKSUMS_PATH}" | awk '{print $1}' | head -n1)"
@@ -144,9 +151,10 @@ if [ "${EXPECTED_SHA}" != "${ACTUAL_SHA}" ]; then
   exit 1
 fi
 
-if [ "${OS}" = "darwin" ]; then
+if [ "${OS}" = "darwin" ] && [ "${ASSET}" = "${ASSET_BASE}.zip" ]; then
+  need_cmd unzip
   unzip -qq "${ASSET_PATH}" -d "${TMP_DIR}"
-  BIN_PATH="${TMP_DIR}/migration-helper-${OS}-${ARCH}"
+  BIN_PATH="${TMP_DIR}/${ASSET_BASE}"
 else
   BIN_PATH="${ASSET_PATH}"
 fi
