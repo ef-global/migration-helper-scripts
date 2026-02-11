@@ -86,7 +86,7 @@ curl -fsSL https://raw.githubusercontent.com/ef-global/migration-helper-scripts/
 The installer script:
 
 - detects OS/architecture,
-- downloads matching release asset,
+- downloads matching release asset (supports both legacy raw macOS binaries and newer notarized `.zip` macOS assets),
 - verifies checksum against `SHA256SUMS.txt`,
 - installs binary to `/usr/local/bin` or falls back to `~/.local/bin`.
 
