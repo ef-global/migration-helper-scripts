@@ -1,22 +1,16 @@
 #!/usr/bin/env bun
 import inquirer from "inquirer";
-import { spawnSync } from "node:child_process";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 import {
   discoverMigrationValidators,
   findDefaultValidatorsRoot,
   type DiscoveredMigrationValidator,
 } from "./discover-migration-validators.js";
+import { runMigrationAudit } from "./migration-audit.js";
 
 type Option = {
   label: string;
   ids: string[];
 };
-
-const thisFilePath = fileURLToPath(import.meta.url);
-const thisDirPath = dirname(thisFilePath);
-const auditScriptPath = resolve(thisDirPath, "migration-audit.ts");
 
 async function loadValidatorsWithFallback(): Promise<{
   validatorsRoot: string;
@@ -53,7 +47,13 @@ function createOptions(validators: DiscoveredMigrationValidator[]): Option[] {
   ];
 }
 
-async function main() {
+export async function runMigrationAuditCli(
+  args: string[] = process.argv.slice(2),
+): Promise<number> {
+  if (args.length > 0) {
+    return runMigrationAudit(args);
+  }
+
   const discovered = await loadValidatorsWithFallback();
   const options = createOptions(discovered.validators);
 
@@ -99,33 +99,35 @@ async function main() {
     },
   ]);
 
-  const args: string[] = [
+  const auditArgs: string[] = [
     targetPath,
     "--validators-root",
     discovered.validatorsRoot,
   ];
 
   if (selection.ids.length > 0) {
-    args.push("--only", selection.ids.join(","));
+    auditArgs.push("--only", selection.ids.join(","));
   }
 
   if (useJson) {
-    args.push("--json");
+    auditArgs.push("--json");
   }
 
   if (debug) {
-    args.push("--debug");
+    auditArgs.push("--debug");
   }
 
   console.log("\nRunning migration audit...\n");
-  const result = spawnSync("bun", ["run", auditScriptPath, ...args], {
-    stdio: "inherit",
-  });
-
-  process.exit(result.status ?? 1);
+  return runMigrationAudit(auditArgs);
 }
 
-main().catch((err) => {
-  console.error("Error:", err.message);
-  process.exit(1);
-});
+if (import.meta.main) {
+  runMigrationAuditCli()
+    .then((exitCode) => {
+      process.exit(exitCode);
+    })
+    .catch((err) => {
+      console.error("Error:", err.message);
+      process.exit(1);
+    });
+}

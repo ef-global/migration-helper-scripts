@@ -150,13 +150,11 @@ function parseCliArgs(args: string[]): ParsedArgs {
   };
 }
 
-function printUsage(): void {
+function printUsage(command = "bun run src/scripts/migration-audit.ts"): void {
   console.error(
-    "Usage: bun run src/scripts/migration-audit.ts <file-or-dir> [--json] [--debug] [--only id[,id...]] [--validators-root <path>]",
+    `Usage: ${command} <file-or-dir> [--json] [--debug] [--only id[,id...]] [--validators-root <path>]`,
   );
-  console.error(
-    "Example: bun run src/scripts/migration-audit.ts ./migration-previews --debug",
-  );
+  console.error(`Example: ${command} ./migration-previews --debug`);
 }
 
 async function runValidatorJson(
@@ -253,16 +251,17 @@ function printHumanValidatorReport(
   }
 }
 
-async function main(): Promise<void> {
+export async function runMigrationAudit(
+  args: string[] = process.argv.slice(2),
+): Promise<number> {
   let parsed: ParsedArgs;
 
   try {
-    parsed = parseCliArgs(process.argv.slice(2));
+    parsed = parseCliArgs(args);
   } catch (err) {
     console.error(err instanceof Error ? err.message : String(err));
     printUsage();
-    process.exit(1);
-    return;
+    return 1;
   }
 
   if (parsed.unknownFlags.length > 0) {
@@ -270,24 +269,37 @@ async function main(): Promise<void> {
       console.error(`Unknown flag: ${flag}`);
     }
     printUsage();
-    process.exit(1);
+    return 1;
   }
 
   if (!parsed.targetPath) {
     printUsage();
-    process.exit(1);
+    return 1;
   }
 
-  const files = collectJsonFiles(parsed.targetPath).sort();
+  let files: string[];
+  try {
+    files = collectJsonFiles(parsed.targetPath).sort();
+  } catch (err) {
+    console.error(err instanceof Error ? err.message : String(err));
+    return 1;
+  }
+
   if (files.length === 0) {
     console.error("No JSON files found at the provided path.");
-    process.exit(1);
+    return 1;
   }
 
-  const discovered = await discoverMigrationValidators({
-    validatorsRoot: parsed.validatorsRoot,
-    isDebug: parsed.isDebug,
-  });
+  let discovered: Awaited<ReturnType<typeof discoverMigrationValidators>>;
+  try {
+    discovered = await discoverMigrationValidators({
+      validatorsRoot: parsed.validatorsRoot,
+      isDebug: parsed.isDebug,
+    });
+  } catch (err) {
+    console.error(err instanceof Error ? err.message : String(err));
+    return 1;
+  }
 
   const allowedIds = new Set(discovered.validators.map((validator) => validator.id));
   const uniqueOnlyIds = Array.from(new Set(parsed.onlyIds));
@@ -298,7 +310,7 @@ async function main(): Promise<void> {
       console.error(
         `Available validator ids: ${discovered.validators.map((v) => v.id).join(", ")}`,
       );
-      process.exit(1);
+      return 1;
     }
   }
 
@@ -398,12 +410,11 @@ async function main(): Promise<void> {
     }
   }
 
-  if (hadErrors) {
-    process.exit(1);
-  }
+  return hadErrors ? 1 : 0;
 }
 
-main().catch((err) => {
-  console.error(err instanceof Error ? err.message : String(err));
-  process.exit(1);
-});
+if (import.meta.main) {
+  runMigrationAudit().then((exitCode) => {
+    process.exit(exitCode);
+  });
+}
