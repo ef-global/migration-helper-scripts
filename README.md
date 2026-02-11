@@ -2,6 +2,24 @@
 
 CLI tooling for Storyblok migration audits and visual JSON diffing.
 
+## Install
+
+Recommended (Homebrew tap):
+
+```bash
+brew tap ef-global/tap
+brew install migration-helper
+```
+
+Fallback (curl installer):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/ef-global/migration-helper-scripts/master/scripts/install.sh | sh
+```
+
+Publisher setup details are documented in:
+`docs/signing-notarization-and-homebrew.md`
+
 ## CLI Commands
 
 During development:
