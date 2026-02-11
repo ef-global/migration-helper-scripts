@@ -2,6 +2,24 @@
 
 CLI tooling for Storyblok migration audits and visual JSON diffing.
 
+## Install
+
+Recommended (Homebrew tap):
+
+```bash
+brew tap ef-global/tap
+brew install migration-helper
+```
+
+Fallback (curl installer):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/ef-global/migration-helper-scripts/master/scripts/install.sh | sh
+```
+
+Publisher setup details are documented in:
+`docs/signing-notarization-and-homebrew.md`
+
 ## CLI Commands
 
 During development:
@@ -73,12 +91,45 @@ After version bumps land on `master`, `Release Binaries`:
 
 - reads `package.json` version,
 - creates `v<version>` tag if missing,
-- builds Bun executables for all targets,
+- builds Linux/Windows executables and macOS executables,
+- signs and notarizes macOS binaries,
 - generates `SHA256SUMS.txt`,
 - publishes assets to GitHub Releases.
+
+Release assets include:
+
+- `migration-helper-darwin-arm64.zip` (signed + notarized)
+- `migration-helper-darwin-x64.zip` (signed + notarized)
+- `migration-helper-linux-x64`
+- `migration-helper-linux-arm64`
+- `migration-helper-windows-x64.exe`
+- `SHA256SUMS.txt`
+
+### macOS Signing/Notarization Secrets
+
+Set these repository secrets for the release workflow:
+
+- `APPLE_CERTIFICATE_BASE64` (base64 of Developer ID Application `.p12`)
+- `APPLE_CERTIFICATE_PASSWORD`
+- `APPLE_ID` (Apple account email)
+- `APPLE_TEAM_ID`
+- `APPLE_APP_SPECIFIC_PASSWORD` (app-specific password for notarytool)
 
 Workflows:
 
 - `.github/workflows/changeset-check.yml`
 - `.github/workflows/changeset-version-pr.yml`
 - `.github/workflows/release-binaries.yml`
+
+## Homebrew
+
+Yes, this CLI can be installed via Homebrew using a custom tap repository (recommended), for example `ef-global/homebrew-tap`.
+
+Typical user install command:
+
+```bash
+brew tap ef-global/tap
+brew install migration-helper
+```
+
+The tap formula should point to GitHub release assets and SHA256 checksums from each release.

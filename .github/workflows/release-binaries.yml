@@ -10,19 +10,17 @@ permissions:
   contents: write
 
 jobs:
-  release:
+  release-meta:
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      tag: ${{ steps.meta.outputs.tag }}
+      skip: ${{ steps.meta.outputs.skip }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
 
       - name: Resolve release tag
         id: meta
@@ -53,25 +51,181 @@ jobs:
           git tag "${{ steps.meta.outputs.tag }}"
           git push origin "${{ steps.meta.outputs.tag }}"
 
-      - name: Build binaries
-        if: steps.meta.outputs.skip != 'true'
-        run: bun run build:all
+  build-linux-windows:
+    needs: release-meta
+    if: needs.release-meta.outputs.skip != 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x64
+            target: bun-linux-x64
+            extension: ""
+          - name: linux-arm64
+            target: bun-linux-arm64
+            extension: ""
+          - name: windows-x64
+            target: bun-windows-x64
+            extension: ".exe"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: Generate checksums
-        if: steps.meta.outputs.skip != 'true'
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build binary
         shell: bash
         run: |
           set -euo pipefail
-          cd bin
-          shasum -a 256 migration-helper-* > SHA256SUMS.txt
+          mkdir -p bin
+          OUTFILE="bin/migration-helper-${{ matrix.name }}${{ matrix.extension }}"
+          bun build src/cli.ts --compile --minify --bytecode --target="${{ matrix.target }}" --outfile="${OUTFILE}"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.name }}
+          path: bin/migration-helper-${{ matrix.name }}${{ matrix.extension }}
+          if-no-files-found: error
+
+  build-sign-notarize-macos:
+    needs: release-meta
+    if: needs.release-meta.outputs.skip != 'true'
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: darwin-arm64
+            target: bun-darwin-arm64
+          - name: darwin-x64
+            target: bun-darwin-x64
+    env:
+      APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+      APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Validate signing secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=()
+          for key in APPLE_CERTIFICATE_BASE64 APPLE_CERTIFICATE_PASSWORD APPLE_ID APPLE_TEAM_ID APPLE_APP_SPECIFIC_PASSWORD; do
+            if [[ -z "${!key:-}" ]]; then
+              missing+=("${key}")
+            fi
+          done
+          if [[ "${#missing[@]}" -gt 0 ]]; then
+            echo "Missing required GitHub secrets: ${missing[*]}"
+            exit 1
+          fi
+
+      - name: Import Developer ID certificate
+        shell: bash
+        run: |
+          set -euo pipefail
+          CERT_PATH="${RUNNER_TEMP}/developer-id.p12"
+          KEYCHAIN_PATH="${RUNNER_TEMP}/build.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -base64 24)"
+
+          echo "${APPLE_CERTIFICATE_BASE64}" | base64 --decode > "${CERT_PATH}"
+
+          security create-keychain -p "${KEYCHAIN_PASSWORD}" "${KEYCHAIN_PATH}"
+          security default-keychain -s "${KEYCHAIN_PATH}"
+          security unlock-keychain -p "${KEYCHAIN_PASSWORD}" "${KEYCHAIN_PATH}"
+          security set-keychain-settings -lut 21600 "${KEYCHAIN_PATH}"
+          security import "${CERT_PATH}" -k "${KEYCHAIN_PATH}" -P "${APPLE_CERTIFICATE_PASSWORD}" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "${KEYCHAIN_PASSWORD}" "${KEYCHAIN_PATH}"
+
+          IDENTITY="$(security find-identity -v -p codesigning "${KEYCHAIN_PATH}" | awk -F '"' '/Developer ID Application/ {print $2; exit}')"
+          if [[ -z "${IDENTITY}" ]]; then
+            echo "No 'Developer ID Application' signing identity found in keychain."
+            exit 1
+          fi
+
+          echo "KEYCHAIN_PATH=${KEYCHAIN_PATH}" >> "$GITHUB_ENV"
+          echo "KEYCHAIN_PASSWORD=${KEYCHAIN_PASSWORD}" >> "$GITHUB_ENV"
+          echo "APPLE_SIGNING_IDENTITY=${IDENTITY}" >> "$GITHUB_ENV"
+
+      - name: Build, sign and notarize macOS binary
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p bin
+          BINARY_PATH="bin/migration-helper-${{ matrix.name }}"
+          ZIP_PATH="${BINARY_PATH}.zip"
+
+          bun build src/cli.ts --compile --minify --bytecode --target="${{ matrix.target }}" --outfile="${BINARY_PATH}"
+
+          codesign --force --options runtime --timestamp --sign "${APPLE_SIGNING_IDENTITY}" "${BINARY_PATH}"
+          codesign --verify --deep --strict --verbose=2 "${BINARY_PATH}"
+
+          ditto -c -k --keepParent "${BINARY_PATH}" "${ZIP_PATH}"
+
+          xcrun notarytool submit "${ZIP_PATH}" \
+            --apple-id "${APPLE_ID}" \
+            --password "${APPLE_APP_SPECIFIC_PASSWORD}" \
+            --team-id "${APPLE_TEAM_ID}" \
+            --wait
+
+      - name: Upload notarized macOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.name }}
+          path: bin/migration-helper-${{ matrix.name }}.zip
+          if-no-files-found: error
+
+      - name: Cleanup signing keychain
+        if: always()
+        shell: bash
+        run: |
+          if [[ -n "${KEYCHAIN_PATH:-}" ]]; then
+            security delete-keychain "${KEYCHAIN_PATH}" || true
+          fi
+
+  publish-release:
+    needs:
+      - release-meta
+      - build-linux-windows
+      - build-sign-notarize-macos
+    if: needs.release-meta.outputs.skip != 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          merge-multiple: true
+          path: dist
+
+      - name: Generate checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd dist
+          shasum -a 256 * > SHA256SUMS.txt
 
       - name: Publish GitHub release
-        if: steps.meta.outputs.skip != 'true'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.meta.outputs.tag }}
-          name: migration-helper ${{ steps.meta.outputs.tag }}
+          tag_name: ${{ needs.release-meta.outputs.tag }}
+          name: migration-helper ${{ needs.release-meta.outputs.tag }}
           generate_release_notes: true
           files: |
-            bin/migration-helper-*
-            bin/SHA256SUMS.txt
+            dist/*
