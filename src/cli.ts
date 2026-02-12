@@ -1,16 +1,19 @@
 #!/usr/bin/env bun
 import { runMigrationAuditCli } from "./scripts/migration-audit-cli.js";
 import { runMigrationDiff } from "./scripts/migration-diff.js";
+import { VERSION } from "./version.js";
 
 const HELP_TEXT = `migration-helper
 
 USAGE:
   migration-helper [audit]
   migration-helper diff <before.json> <after.json> [--out <html-file>] [--serve] [--port 4173]
+  migration-helper version
 
 COMMANDS:
   audit   Run interactive migration validator selection (default)
   diff    Generate visual HTML diff between two JSON files
+  version Show CLI version
   help    Show this help message
 
 EXAMPLES:
@@ -21,6 +24,10 @@ EXAMPLES:
 
 function printHelp(): void {
   console.log(HELP_TEXT);
+}
+
+function printVersion(): void {
+  console.log(`migration-helper v${VERSION}`);
 }
 
 export async function runCli(args: string[] = process.argv.slice(2)): Promise<number> {
@@ -36,6 +43,11 @@ export async function runCli(args: string[] = process.argv.slice(2)): Promise<nu
 
   if (command === "help" || command === "--help" || command === "-h") {
     printHelp();
+    return 0;
+  }
+
+  if (command === "version" || command === "--version" || command === "-v") {
+    printVersion();
     return 0;
   }
 
