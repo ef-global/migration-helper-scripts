@@ -1,61 +1,11 @@
-# Signing, Notarization, and Distribution
+# Distribution and Homebrew
 
 This guide documents:
 
-1. How to prepare GitHub secrets for macOS signing/notarization.
-2. How users can install `migration-helper` (Homebrew, curl installer, manual).
-3. How to distribute `migration-helper` via Homebrew.
+1. How users can install `migration-helper` (Homebrew, curl installer, manual).
+2. How to distribute `migration-helper` via Homebrew.
 
-## 1) Apple Signing + Notarization Secrets
-
-The release workflow expects these GitHub repository secrets:
-
-- `APPLE_CERTIFICATE_BASE64`
-- `APPLE_CERTIFICATE_PASSWORD`
-- `APPLE_ID`
-- `APPLE_TEAM_ID`
-- `APPLE_APP_SPECIFIC_PASSWORD`
-
-### `APPLE_ID`
-
-Your Apple Developer account email.
-
-### `APPLE_TEAM_ID`
-
-Your Apple Developer Team ID (10 characters), visible in Apple Developer account membership/team settings.
-
-### `APPLE_CERTIFICATE_BASE64` and `APPLE_CERTIFICATE_PASSWORD`
-
-1. On a Mac, open `Keychain Access`.
-2. Locate a `Developer ID Application` certificate.
-3. Export it as `.p12` and set an export password.
-4. Use that export password as `APPLE_CERTIFICATE_PASSWORD`.
-5. Base64 encode the `.p12`:
-
-```bash
-# macOS
-base64 -i developer-id-application.p12 | pbcopy
-```
-
-```bash
-# Linux alternative (no line wraps)
-base64 -w 0 developer-id-application.p12
-```
-
-6. Store the base64 output as `APPLE_CERTIFICATE_BASE64`.
-
-### `APPLE_APP_SPECIFIC_PASSWORD`
-
-1. Go to `https://appleid.apple.com`.
-2. Sign in with your Apple ID.
-3. Security -> App-Specific Passwords -> Generate Password.
-4. Use that generated value for `APPLE_APP_SPECIFIC_PASSWORD`.
-
-### Add secrets in GitHub
-
-Repository -> `Settings` -> `Secrets and variables` -> `Actions` -> `New repository secret`.
-
-## 2) Homebrew Distribution
+## 1) Install Methods
 
 For public CLI distribution in 2026, the usual order is:
 
@@ -86,7 +36,7 @@ curl -fsSL https://raw.githubusercontent.com/ef-global/migration-helper-scripts/
 The installer script:
 
 - detects OS/architecture,
-- downloads matching release asset (supports both legacy raw macOS binaries and newer notarized `.zip` macOS assets),
+- downloads matching release asset (supports both raw macOS binaries and `.zip` macOS assets),
 - verifies checksum against `SHA256SUMS.txt`,
 - installs binary to `/usr/local/bin` or falls back to `~/.local/bin`.
 
@@ -98,17 +48,16 @@ Script path: `scripts/install.sh`
 2. Verify checksum.
 3. Move binary to a directory on `PATH`.
 
-Example (macOS arm64):
+Example (macOS arm64, raw binary):
 
 ```bash
-curl -fsSLO https://github.com/ef-global/migration-helper-scripts/releases/download/v1.1.0/migration-helper-darwin-arm64.zip
+curl -fsSLO https://github.com/ef-global/migration-helper-scripts/releases/download/v1.1.0/migration-helper-darwin-arm64
 curl -fsSLO https://github.com/ef-global/migration-helper-scripts/releases/download/v1.1.0/SHA256SUMS.txt
-grep " migration-helper-darwin-arm64.zip$" SHA256SUMS.txt | shasum -a 256 -c -
-unzip migration-helper-darwin-arm64.zip
+grep " migration-helper-darwin-arm64$" SHA256SUMS.txt | shasum -a 256 -c -
 install -m 0755 migration-helper-darwin-arm64 /usr/local/bin/migration-helper
 ```
 
-## 3) Homebrew Distribution (Publisher Setup)
+## 2) Homebrew Distribution (Publisher Setup)
 
 Yes, users can install this CLI through Homebrew using a tap repository.
 
@@ -133,12 +82,12 @@ class MigrationHelper < Formula
 
   on_macos do
     on_arm do
-      url "https://github.com/ef-global/migration-helper-scripts/releases/download/v#{version}/migration-helper-darwin-arm64.zip"
-      sha256 "<SHA256_DARWIN_ARM64_ZIP>"
+      url "https://github.com/ef-global/migration-helper-scripts/releases/download/v#{version}/migration-helper-darwin-arm64"
+      sha256 "<SHA256_DARWIN_ARM64>"
     end
     on_intel do
-      url "https://github.com/ef-global/migration-helper-scripts/releases/download/v#{version}/migration-helper-darwin-x64.zip"
-      sha256 "<SHA256_DARWIN_X64_ZIP>"
+      url "https://github.com/ef-global/migration-helper-scripts/releases/download/v#{version}/migration-helper-darwin-x64"
+      sha256 "<SHA256_DARWIN_X64>"
     end
   end
 
