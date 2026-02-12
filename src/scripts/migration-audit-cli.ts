@@ -6,11 +6,35 @@ import {
   type DiscoveredMigrationValidator,
 } from "./discover-migration-validators.js";
 import { runMigrationAudit } from "./migration-audit.js";
+import { runMigrationDiff } from "./migration-diff.js";
+import { VERSION } from "../version.js";
 
 type Option = {
   label: string;
   ids: string[];
 };
+
+const HELP_TEXT = `migration-helper
+
+USAGE:
+  migration-helper [audit]
+  migration-helper diff <before.json> <after.json> [--out <html-file>] [--serve] [--port 4173]
+  migration-helper version
+
+COMMANDS:
+  audit   Run interactive migration validator selection (default)
+  diff    Generate visual HTML diff between two JSON files
+  version Show CLI version
+  help    Show this help message
+`;
+
+function printHelp(): void {
+  console.log(HELP_TEXT);
+}
+
+function printVersion(): void {
+  console.log(`migration-helper v${VERSION}`);
+}
 
 async function loadValidatorsWithFallback(): Promise<{
   validatorsRoot: string;
@@ -51,6 +75,26 @@ export async function runMigrationAuditCli(
   args: string[] = process.argv.slice(2),
 ): Promise<number> {
   if (args.length > 0) {
+    const command = args[0];
+
+    if (command === "help" || command === "--help" || command === "-h") {
+      printHelp();
+      return 0;
+    }
+
+    if (command === "version" || command === "--version" || command === "-v") {
+      printVersion();
+      return 0;
+    }
+
+    if (command === "diff") {
+      return runMigrationDiff(args.slice(1), "migration-helper diff");
+    }
+
+    if (command === "audit") {
+      return runMigrationAudit(args.slice(1));
+    }
+
     return runMigrationAudit(args);
   }
 
