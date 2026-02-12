@@ -93,29 +93,18 @@ After version bumps land on `master`, `Release Binaries`:
 
 - reads `package.json` version,
 - creates `v<version>` tag if missing,
-- builds Linux/Windows executables and macOS executables,
-- signs and notarizes macOS binaries,
+- builds executables for all supported targets,
 - generates `SHA256SUMS.txt`,
 - publishes assets to GitHub Releases.
 
 Release assets include:
 
-- `migration-helper-darwin-arm64.zip` (signed + notarized)
-- `migration-helper-darwin-x64.zip` (signed + notarized)
+- `migration-helper-darwin-arm64`
+- `migration-helper-darwin-x64`
 - `migration-helper-linux-x64`
 - `migration-helper-linux-arm64`
 - `migration-helper-windows-x64.exe`
 - `SHA256SUMS.txt`
-
-### macOS Signing/Notarization Secrets
-
-Set these repository secrets for the release workflow:
-
-- `APPLE_CERTIFICATE_BASE64` (base64 of Developer ID Application `.p12`)
-- `APPLE_CERTIFICATE_PASSWORD`
-- `APPLE_ID` (Apple account email)
-- `APPLE_TEAM_ID`
-- `APPLE_APP_SPECIFIC_PASSWORD` (app-specific password for notarytool)
 
 Workflows:
 
