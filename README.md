@@ -24,11 +24,34 @@ Install/distribution details are documented in:
 
 ## CLI Commands
 
+Default interactive mode:
+
+```bash
+migration-helper
+```
+
+This opens a guided CLI that:
+
+- lets you choose `audit` or `diff`
+- discovers `sb-mig` runs from `sbmig/migrations`
+- lets you select a migration run instead of raw files
+- auto-wires the correct artifacts for audit or diff
+
+Interactive command-specific entrypoints:
+
+```bash
+migration-helper audit
+migration-helper diff
+```
+
+Path-based non-interactive usage is still supported:
+
 During development:
 
 ```bash
 bun run src/cli.ts
 bun run src/cli.ts audit
+bun run src/cli.ts diff
 bun run src/cli.ts diff before.json after.json --serve --port 4717
 ```
 
@@ -36,6 +59,8 @@ Package bin commands:
 
 ```bash
 migration-helper
+migration-helper audit
+migration-helper diff
 migration-helper diff before.json after.json --serve --port 4717
 ```
 

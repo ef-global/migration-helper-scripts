@@ -2,13 +2,15 @@
 import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 
-function parseArgs(args: string[]): {
+export type ParsedDiffArgs = {
   beforePath: string | null;
   afterPath: string | null;
   outPath: string;
   serve: boolean;
   port: number;
-} {
+};
+
+export function parseDiffArgs(args: string[]): ParsedDiffArgs {
   let beforePath: string | null = null;
   let afterPath: string | null = null;
   let outPath = "./migration-diff-report.html";
@@ -2258,7 +2260,7 @@ export async function runMigrationDiff(
   let parsed;
 
   try {
-    parsed = parseArgs(args);
+    parsed = parseDiffArgs(args);
   } catch (err) {
     console.error(err instanceof Error ? err.message : String(err));
     usage(command);
