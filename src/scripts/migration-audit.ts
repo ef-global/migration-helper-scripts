@@ -28,7 +28,7 @@ type AuditReport = {
   files: FileReport[];
 };
 
-type ParsedArgs = {
+export type ParsedAuditArgs = {
   targetPath: string | null;
   isJson: boolean;
   isDebug: boolean;
@@ -74,7 +74,7 @@ function collectJsonFiles(targetPath: string): string[] {
   return results;
 }
 
-function parseCliArgs(args: string[]): ParsedArgs {
+export function parseMigrationAuditArgs(args: string[]): ParsedAuditArgs {
   const unknownFlags: string[] = [];
   const isJson = args.includes("--json");
   const isDebug = args.includes("--debug");
@@ -254,10 +254,10 @@ function printHumanValidatorReport(
 export async function runMigrationAudit(
   args: string[] = process.argv.slice(2),
 ): Promise<number> {
-  let parsed: ParsedArgs;
+  let parsed: ParsedAuditArgs;
 
   try {
-    parsed = parseCliArgs(args);
+    parsed = parseMigrationAuditArgs(args);
   } catch (err) {
     console.error(err instanceof Error ? err.message : String(err));
     printUsage();
